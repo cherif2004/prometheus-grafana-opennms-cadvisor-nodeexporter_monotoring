@@ -1,0 +1,172 @@
+---
+version: '3.7'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+    - 9090:9090
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+    - /home/cherif/docker-prometheus/Volume_Manager/dockermonitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.10
+    restart: unless-stopped
+    
+
+
+    depends_on:
+    - cadvisor
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: mycadvisor
+    ports:
+    - 8020:8080
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:rw
+    - /sys:/sys:ro
+    - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.11
+      
+    restart : unless-stopped
+    depends_on:
+    - redis
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+    - 6379:6379
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.12
+    restart: unless-stopped
+  grafana:
+    image: docker.io/grafana/grafana:8.5.21
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - '9000:9000'
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.13
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    
+  base:
+
+    image: postgres:14.5
+
+    container_name: database
+
+    environment:
+
+      TZ: 'America/Toronto'
+
+      POSTGRES_USER: 'postgres'
+
+      POSTGRES_PASSWORD: 'anas_cheriif'
+      POSTGRES_DB: 'db-postgres'
+
+    volumes:
+
+      - 'data-postgres:/var/lib/postgresql/data'
+      - /home/cherif/docker-prometheus/Volume_Manager/dockermonitoring/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf:ro
+
+    healthcheck:
+
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+
+      interval: 10s
+
+      timeout: 3s
+
+      retries: 3
+
+    ports:
+
+      - '5432:5432/tcp'
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.14
+
+    restart: always
+
+  horizon:
+
+    image: opennms/horizon:30.0.3
+
+
+    container_name: horizon
+
+    environment:
+
+      TZ: 'America/Toronto'
+
+      POSTGRES_HOST: 172.90.0.14
+
+      POSTGRES_PORT: 5432
+
+      POSTGRES_USER: 'postgres'
+
+      POSTGRES_PASSWORD: "anas_cheriif"
+
+      OPENNMS_DBNAME: 'opennms-core-db'
+
+      OPENNMS_DBUSER: 'opennms'
+
+      OPENNMS_DBPASS: 'SysAdmin100!'
+
+
+    volumes:
+
+      - data-opennms:/opennms-data
+
+      - data-config:/opt/opennms/etc
+
+    command: ["-s"]
+
+    ports:
+
+      - '8980:8980/tcp'
+
+      - '8101:8101/tcp'
+    networks:
+       network_DinD:
+         ipv4_address: 172.90.0.15
+
+    healthcheck:
+
+      test: [ 'CMD', 'curl', '-f', '-I', 'http://localhost:8980/opennms/login.jsp' ]
+
+      interval: 5m
+
+      timeout: 5m
+
+      retries: 3
+
+    restart: always
+
+      
+volumes:
+  grafana-storage: {}
+
+  data-postgres: {}
+  data-opennms: {}
+  data-config: {}
+networks:
+  network_DinD:
+    
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.90.0.0/16
+
+
+  
+
+  
